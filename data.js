@@ -107,27 +107,27 @@ const DEVICE_TYPES = {
   },
   drum_kick: {
     id: 'drum_kick', label: 'Bombo', category: 'instrument', icon: '🥁',
-    requiresPower: false, isSoundSource: true,
+    requiresPower: false, isSoundSource: true, isAcoustic: true,
     ports: [{ id: 'out_xlr', label: 'Mic sobre bombo', direction: 'out', connector: 'xlr', signal: 'mic' }]
   },
   drum_snare: {
     id: 'drum_snare', label: 'Redoblante', category: 'instrument', icon: '🥁',
-    requiresPower: false, isSoundSource: true,
+    requiresPower: false, isSoundSource: true, isAcoustic: true,
     ports: [{ id: 'out_xlr', label: 'Mic sobre redoblante', direction: 'out', connector: 'xlr', signal: 'mic' }]
   },
   drum_overhead_l: {
     id: 'drum_overhead_l', label: 'Overhead L', category: 'instrument', icon: '🎵',
-    requiresPower: false, isSoundSource: true,
+    requiresPower: false, isSoundSource: true, isAcoustic: true,
     ports: [{ id: 'out_xlr', label: 'Mic overhead L', direction: 'out', connector: 'xlr', signal: 'mic' }]
   },
   drum_overhead_r: {
     id: 'drum_overhead_r', label: 'Overhead R', category: 'instrument', icon: '🎵',
-    requiresPower: false, isSoundSource: true,
+    requiresPower: false, isSoundSource: true, isAcoustic: true,
     ports: [{ id: 'out_xlr', label: 'Mic overhead R', direction: 'out', connector: 'xlr', signal: 'mic' }]
   },
   drum_full: {
     id: 'drum_full', label: 'Batería completa (drumset)', category: 'instrument', icon: '🥁',
-    requiresPower: false, isSoundSource: true, isDrumset: true,
+    requiresPower: false, isSoundSource: true, isDrumset: true, isAcoustic: true,
     ports: [
       { id: 'out_kick',  label: 'Mic bombo',      direction: 'out', connector: 'xlr', signal: 'mic' },
       { id: 'out_snare', label: 'Mic redoblante', direction: 'out', connector: 'xlr', signal: 'mic' },
@@ -184,11 +184,13 @@ const DEVICE_TYPES = {
   },
   di_passive: {
     id: 'di_passive', label: 'Caja directa pasiva', category: 'audio', icon: '📦',
-    requiresPower: false, isDI: true, isMono: true,
+    requiresPower: false, isDI: true,
+    channelsConfigurable: true, dynamicPorts: 'di', defaultChannels: 1,
+    // Cada canal: entrada TS (instrumento) + thru TS + salida XLR (ver diPorts en app.js)
     ports: [
-      { id: 'in_ts',   label: 'Entrada TS',  direction: 'in',  connector: 'ts',  signal: 'instrument' },
-      { id: 'thru',    label: 'Thru TS',     direction: 'out', connector: 'ts',  signal: 'instrument' },
-      { id: 'out_xlr', label: 'Salida XLR',  direction: 'out', connector: 'xlr', signal: 'mic'        }
+      { id: 'in_ts_1',   label: 'Entrada TS', direction: 'in',  connector: 'ts',  signal: 'instrument' },
+      { id: 'thru_1',    label: 'Thru TS',    direction: 'out', connector: 'ts',  signal: 'instrument' },
+      { id: 'out_xlr_1', label: 'Salida XLR', direction: 'out', connector: 'xlr', signal: 'mic'        }
     ]
   },
   di_active: {
@@ -254,8 +256,9 @@ const DEVICE_TYPES = {
     ports: [
       { id: 'in_1',   label: 'Input 1 XLR',    direction: 'in',  connector: 'xlr', signal: 'mic'     },
       { id: 'in_2',   label: 'Input 2 XLR',    direction: 'in',  connector: 'xlr', signal: 'mic'     },
-      { id: 'out_l',  label: 'Output L',       direction: 'out', connector: 'trs', signal: 'line'    },
-      { id: 'out_r',  label: 'Output R',       direction: 'out', connector: 'trs', signal: 'line'    },
+      { id: 'out_l',  label: 'Output L',        direction: 'out', connector: 'trs', signal: 'line'    },
+      { id: 'out_r',  label: 'Output R',        direction: 'out', connector: 'trs', signal: 'line'    },
+      { id: 'out_hp', label: 'Salida audífonos',direction: 'out', connector: 'trs', signal: 'line'    },
       { id: 'usb',    label: 'USB a computador',direction: 'out', connector: 'usb', signal: 'digital' }
     ]
   },
@@ -337,6 +340,18 @@ const DEVICE_TYPES = {
   },
   music_stand: {
     id: 'music_stand', label: 'Atril de partitura', category: 'accessory', icon: '🎼',
+    isAccessory: true, ports: []
+  },
+  stand_guitar: {
+    id: 'stand_guitar', label: 'Soporte de guitarra (piso)', category: 'accessory', icon: '🎸',
+    isAccessory: true, ports: []
+  },
+  stand_bass: {
+    id: 'stand_bass', label: 'Soporte de bajo (piso)', category: 'accessory', icon: '🎸',
+    isAccessory: true, ports: []
+  },
+  stand_keyboard: {
+    id: 'stand_keyboard', label: 'Soporte de teclado', category: 'accessory', icon: '🎹',
     isAccessory: true, ports: []
   },
   iem_pack: {

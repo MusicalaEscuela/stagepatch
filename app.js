@@ -117,9 +117,10 @@ function ifacePorts(el) {
       direction: 'in', connector: conn, signal: conn === 'xlr' ? 'mic' : 'instrument'
     });
   }
-  ports.push({ id: 'out_l', label: 'Output L',         direction: 'out', connector: 'trs', signal: 'line'    });
-  ports.push({ id: 'out_r', label: 'Output R',         direction: 'out', connector: 'trs', signal: 'line'    });
-  ports.push({ id: 'usb',   label: 'USB a computador', direction: 'out', connector: 'usb', signal: 'digital' });
+  ports.push({ id: 'out_l',  label: 'Output L',          direction: 'out', connector: 'trs', signal: 'line'    });
+  ports.push({ id: 'out_r',  label: 'Output R',          direction: 'out', connector: 'trs', signal: 'line'    });
+  ports.push({ id: 'out_hp', label: 'Salida audífonos',  direction: 'out', connector: 'trs', signal: 'line'    });
+  ports.push({ id: 'usb',    label: 'USB a computador',  direction: 'out', connector: 'usb', signal: 'digital' });
   return ports;
 }
 
@@ -411,6 +412,7 @@ function addElement(typeId, x, y, overrides = {}) {
   state.elements.push(el);
   renderCard(el);
   redrawCables();
+  refreshActivePanel();
   autoSave();
   return el;
 }
@@ -581,6 +583,7 @@ function deleteEl(id) {
   if (card) card.remove();
   if (state.selectedElementId === id) state.selectedElementId = null;
   redrawCables();
+  refreshActivePanel();
   autoSave();
 }
 
@@ -682,6 +685,7 @@ function createCable(fromEl, fromPort, fromConnector, toEl, toPort, toConnector)
   state.cables.push(cable);
   redrawCables();
   refreshAllStatuses();
+  refreshActivePanel();
   autoSave();
   const ct = CONNECTION_TYPES[cable.cableType];
   toast(`Cable ${ct ? ct.label : cable.cableType} conectado ✓`, 'ok');
@@ -698,6 +702,7 @@ function deleteCab(id) {
   state.cables = state.cables.filter(c => c.id !== id);
   redrawCables();
   refreshAllStatuses();
+  refreshActivePanel();
   autoSave();
   closeCableTip();
   if (state.selectedCableId === id) state.selectedCableId = null;
@@ -968,11 +973,17 @@ function saveModal() {
   const nameEl = document.querySelector('#ec-' + id + ' .el-name');
   if (nameEl) nameEl.textContent = el.name;
   closeModal();
+  refreshActivePanel();
   autoSave();
 }
 
 function modalIsOpen() {
   return !document.getElementById('modal-overlay').classList.contains('hidden');
+}
+
+// Re-renderiza el panel activo (p.ej. tras conectar/desconectar)
+function refreshActivePanel() {
+  setPanel(state.activePanel || 'diagnosis');
 }
 
 // ── PANEL TABS ────────────────────────────────────────────────
@@ -1001,6 +1012,30 @@ function runValidation() {
   const inCables   = id => state.cables.filter(c => c.toEl   === id && c.cableType !== 'power');
   const hasPower   = id => state.cables.some(c => c.toEl === id && c.cableType === 'power');
   const destType   = id => { const e = elById(id); return e ? dtype(e.typeId) : null; };
+
+  // ¿La señal de este equipo llega hasta una consola/interfaz (PA),
+  // aunque pase por DI, ampli, pedal, stagebox…? (USB es bidireccional)
+  const reachesConsole = startId => {
+    const seen = new Set([startId]);
+    const queue = [startId];
+    while (queue.length) {
+      const cur = queue.shift();
+      state.cables.forEach(c => {
+        if (c.cableType === 'power') return;
+        let next = null;
+        if (c.fromEl === cur) next = c.toEl;
+        else if (c.toEl === cur && c.cableType === 'usb') next = c.fromEl; // USB va en ambos sentidos
+        if (next == null || seen.has(next)) return;
+        seen.add(next);
+        queue.push(next);
+      });
+    }
+    for (const id of seen) {
+      const dt = destType(id);
+      if (dt && (dt.isMixer || dt.isInterface)) return true;
+    }
+    return false;
+  };
 
   // Estadísticas
   const stats = {
@@ -1040,16 +1075,14 @@ function runValidation() {
       // USB es bidireccional (p.ej. computador ↔ interfaz): cuenta como conexión válida
       const usbLink = state.cables.some(c => (c.fromEl === el.id || c.toEl === el.id) && c.cableType === 'usb');
       if (outs.length === 0 && !usbLink) {
-        errors.push(`🔇 "${el.name}" no tiene ninguna conexión de audio de salida.`);
-      } else if (outs.length > 0) {
-        // ¿La señal llega a un destino?
-        const reachesDestination = outs.some(c => {
-          const dt = destType(c.toEl);
-          return dt && (dt.isDestination || dt.isDI || dt.isAmplifier);
-        });
-        if (!reachesDestination && !usbLink) {
-          warnings.push(`📡 "${el.name}": la señal no llega claramente a un mixer, interfaz, DI o ampli.`);
+        if (t.isAcoustic) {
+          suggestions.push(`🥁 "${el.name}" sin micrófono: sonará acústico, sin refuerzo por el PA.`);
+        } else {
+          errors.push(`🔇 "${el.name}" no está amplificado: debe conectarse a un mixer, interfaz, DI o ampli.`);
         }
+      } else if (!t.isAcoustic && !usbLink && !reachesConsole(el.id)) {
+        // Está conectado, pero la señal no llega hasta la consola/interfaz
+        errors.push(`🔌 "${el.name}" está conectado, pero su señal no llega a ninguna consola/interfaz (revisa que el ampli/DI/pedal tenga su salida conectada).`);
       }
 
       // DI recomendada (no aplica si va a interfaz, ampli, DI o por USB/digital)
@@ -1423,11 +1456,14 @@ function checklistGroups() {
 }
 function loadChecks() { try { return JSON.parse(localStorage.getItem('msp_checklist') || '{}'); } catch (e) { return {}; } }
 function saveChecks(c) { try { localStorage.setItem('msp_checklist', JSON.stringify(c)); } catch (e) {} }
+function loadQty() { try { return JSON.parse(localStorage.getItem('msp_checklist_qty') || '{}'); } catch (e) { return {}; } }
+function saveQty(q) { try { localStorage.setItem('msp_checklist_qty', JSON.stringify(q)); } catch (e) {} }
 
 function renderChecklist() {
   const body = document.getElementById('panel-body');
   const groups = checklistGroups();
   const checks = loadChecks();
+  const qtyMap = loadQty();
 
   if (!groups.length) {
     body.innerHTML = `<div class="empty-state"><h3>Sin elementos</h3>
@@ -1462,10 +1498,18 @@ function renderChecklist() {
     html += `<div class="chk-group-title">${g.title}</div>`;
     g.items.forEach(([lbl, n]) => {
       const ki = lbl + '::ida', kr = lbl + '::reg';
+      const bring = qtyMap[lbl] !== undefined ? qtyMap[lbl] : n;
+      const short = bring < n, none = bring === 0;
       html += `<div class="chk-row">
         <button class="chk-box ${checks[ki] ? 'on' : ''}" data-k="${ki}">${checks[ki] ? '✓' : ''}</button>
         <button class="chk-box ${checks[kr] ? 'on' : ''}" data-k="${kr}">${checks[kr] ? '✓' : ''}</button>
-        <span class="chk-label"><span class="chk-qty">×${n}</span> ${lbl}</span>
+        <span class="chk-label">
+          <span class="chk-name">${lbl}</span>
+          <span class="chk-bring ${none ? 'none' : short ? 'short' : ''}">Requiere <strong>×${n}</strong> · Llevamos
+            <input type="number" min="0" inputmode="numeric" data-q="${lbl}" value="${bring}">
+            ${none ? '<em>· lo pone el lugar</em>' : ''}
+          </span>
+        </span>
       </div>`;
     });
   });
@@ -1482,6 +1526,11 @@ function renderChecklist() {
     const which = b.dataset.reset, c = loadChecks();
     Object.keys(c).forEach(k => { if (k.endsWith('::' + which)) delete c[k]; });
     saveChecks(c); renderChecklist();
+  });
+  body.querySelectorAll('[data-q]').forEach(inp => inp.onchange = () => {
+    const q = loadQty();
+    q[inp.dataset.q] = Math.max(0, parseInt(inp.value) || 0);
+    saveQty(q); renderChecklist();
   });
 }
 
@@ -1502,6 +1551,17 @@ function saveProject() {
 
 function autoSave() { saveProject(); }
 
+// Elimina cables que apunten a elementos o puertos que ya no existen
+function sanitizeCables() {
+  state.cables = state.cables.filter(c => {
+    const fe = elById(c.fromEl), te = elById(c.toEl);
+    if (!fe || !te) return false;
+    const fOk = getPorts(fe).some(p => p.id === c.fromPort);
+    const tOk = getPorts(te).some(p => p.id === c.toPort);
+    return fOk && tOk;
+  });
+}
+
 function loadProject() {
   try {
     const saved = localStorage.getItem('msp_project');
@@ -1509,8 +1569,11 @@ function loadProject() {
     const data = JSON.parse(saved);
     state.elements = data.elements || [];
     state.cables   = data.cables   || [];
+    const before = state.cables.length;
+    sanitizeCables();   // eliminar cables huérfanos (puertos/elementos que ya no existen)
     state.project  = { name: data.name || 'Nuevo montaje', version: data.version || '1.0' };
     document.getElementById('project-name').value = state.project.name;
+    if (state.cables.length !== before) saveProject();   // persistir estado limpio
   } catch(e) { console.warn('No se pudo cargar proyecto guardado:', e); }
 }
 
@@ -1546,6 +1609,7 @@ function importJSON(e) {
       if (!confirm(`¿Cargar proyecto "${data.name}"?`)) return;
       state.elements = data.elements;
       state.cables   = data.cables || [];
+      sanitizeCables();
       state.project  = { name: data.name || 'Importado', version: data.version || '1.0' };
       document.getElementById('project-name').value = state.project.name;
       renderAll(); renderDiagnosis(runValidation()); saveProject();

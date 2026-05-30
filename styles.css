@@ -180,8 +180,18 @@ button { font-family: var(--font); }
   -webkit-tap-highlight-color: transparent;
 }
 .chk-box.on { background: #10B981; border-color: #10B981; }
-.chk-label { font-size: 13px; color: var(--gray-700, #374151); line-height: 1.25; }
+.chk-label { font-size: 13px; color: var(--gray-700, #374151); line-height: 1.25; display: flex; flex-direction: column; gap: 2px; }
+.chk-name { font-weight: 600; }
 .chk-qty { font-weight: 700; color: var(--purple); margin-right: 4px; }
+.chk-bring { font-size: 11px; color: var(--gray-500, #6B7280); display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.chk-bring input {
+  width: 50px; padding: 2px 4px; font-size: 12px; text-align: center;
+  border: 1px solid var(--gray-300, #D1D5DB); border-radius: 6px;
+}
+.chk-bring.short input { border-color: #F59E0B; color: #B45309; font-weight: 700; }
+.chk-bring.none input { border-color: var(--gray-300, #D1D5DB); color: var(--gray-400, #9CA3AF); }
+.chk-bring.none { color: var(--gray-400, #9CA3AF); }
+.chk-bring em { font-style: normal; }
 .chk-actions { display: flex; gap: 8px; margin-top: 14px; }
 .chk-actions .icon-btn { flex: 1; justify-content: center; }
 
